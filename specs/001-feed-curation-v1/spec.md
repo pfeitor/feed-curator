@@ -280,7 +280,7 @@ O usuário exporta a lista de feeds ativos em OPML a qualquer momento, importa u
 - A importância (rubrica) será redigida com o usuário na etapa de avaliação, com exemplos (Q-03); os itens da triagem e os casos de repetição serão rotulados pelo usuário sobre listas geradas pelo sistema (Q-04).
 - O mecanismo do supervisor externo e do canal independente do alerta serão definidos no planejamento (Q-17/Q-33).
 - Rubrica e lista inicial de feeds ficam versionadas no repositório; o estado operacional de feeds fica no banco, com exportação OPML como instantâneo (Q-34).
-- O council deliberou assumindo armazenamento leve (SQLite); o documento de origem mantém Postgres. A escolha de armazenamento fica para o planejamento e não altera os requisitos acima (bloqueio de concorrência, cópia periódica e migrações valem para qualquer um).
+- O council deliberou assumindo armazenamento leve (SQLite); o documento de origem mantém Postgres. A escolha de armazenamento está em análise no ADR `docs/adr/0001-armazenamento-do-estado.md` (status: proposta) e não altera os requisitos acima (bloqueio de concorrência, cópia periódica e migrações valem para qualquer um).
 
 **Parâmetros dependentes do usuário (padrões provisórios do council; confirmar em nova rodada de `/speckit-clarify`)**
 
