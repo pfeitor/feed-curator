@@ -52,7 +52,9 @@ Nenhum segredo pode ter valor literal padrão (fallback hardcoded) no código-fo
 - `TELEGRAM_BOT_TOKEN`: token do bot principal de entrega/interação (obrigatório fora de `dry-run`/`migrate`)
 - `TELEGRAM_ALLOWED_USER_IDS`: lista separada por vírgula de IDs inteiros autorizados (obrigatório; ex.: `123456789`)
 - `TELEGRAM_CHAT_ID`: chat privado autorizado de destino do digest
-- `LLM_PROVIDER` / `LLM_MODEL` / `LLM_API_KEY`: credenciais do provedor de pontuação (obrigatórias apenas quando modo sombra, triagem com LLM ou seleção LLM aprovada estiverem habilitados)
+- `LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KEY`: endpoint HTTPS OpenAI-compatível (primeiro adaptador confirmado: API Z.AI `api.z.ai`, ex.: modelo `glm-5.3-flash`) e chave de API; obrigatórias (`fail-closed`, sem fallback hardcoded e mascaradas em qualquer erro/log) sempre que modo sombra, triagem com LLM ou seleção LLM aprovada estiverem habilitados
+- `LLM_TIMEOUT_S`: timeout por requisição HTTP ao `Scorer` (padrão `60`, `max_retries=0`)
+- `LLM_INPUT_PRICE_PER_1M_USD` / `LLM_OUTPUT_PRICE_PER_1M_USD`: preços unitários vigentes do modelo configurado (obrigatórios quando LLM habilitado, persistidos em micro-USD por tentativa em `paid_usage_ledger` — FR-019, FR-021)
 - `LLM_MONTHLY_BUDGET_USD`: padrão `5.00` (deriva teto diário persistente em `America/Sao_Paulo`)
 - `DIGEST_MAX_ITEMS`: padrão `7` (`1..15`)
 - `DIGEST_MIN_SCORE`: padrão `4` (`1..5`)

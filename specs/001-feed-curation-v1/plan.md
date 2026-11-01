@@ -34,19 +34,17 @@ Entregar um curador diário de feeds RSS/Atom para usuário único via Telegram,
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-- **Estado de `.specify/memory/constitution.md`**: o arquivo contém atualmente o template inicial não preenchido (`[PROJECT_NAME]`, `[PRINCIPLE_1_NAME]`, etc.; `/speckit-constitution` ainda não foi executado no repositório). Não há, portanto, violação de cláusulas constitucionais ratificadas.
-- **Gates normativos do projeto avaliados substitutivamente** (derivados das restrições inegociáveis de `spec.md`, `docs/adr/0001-armazenamento-do-estado.md`, convenções do workspace e diretrizes de segurança):
+- **Constituição ativa**: `.specify/memory/constitution.md` (**v1.0.0**, ratificada em `2026-11-01`).
+- **Avaliação de conformidade com os Princípios I–V e Seções Operacionais**:
 
-| Gate | Avaliação Pré-Fase 0 | Reavaliação Pós-Fase 1 (Design) | Evidência nos Artefatos |
+| Princípio / Seção Constitucional | Avaliação Pré-Fase 0 | Reavaliação Pós-Fase 1 (Design) | Evidência nos Artefatos |
 |---|---|---|---|
-| **G-01: Evidência antes de entrega por LLM (`FR-018`, `SC-005`, `SC-012`)** | PASS | PASS | `SimpleRuleScorer` é o seletor padrão; `aprovar_llm` exige `frozen-criteria.yaml` commitado antes das notas e recall nos raros estritamente superior ([data-model.md](data-model.md) §2.8, [scorer-and-evaluation.md](contracts/scorer-and-evaluation.md) §2). |
-| **G-02: Teto de gasto preventivo e atômico (`FR-019..021`, `SC-004`)** | PASS | PASS | Reserva em micro-USD via `BEGIN IMMEDIATE` antes de toda chamada HTTP ao LLM, sem retries ocultos de SDK ([research.md](research.md) R-03, [data-model.md](data-model.md) §2.6). |
-| **G-03: Intenção durável e proibição de retry em estado `incerto` (`FR-025..026`, `SC-003`)** | PASS | PASS | Transição `pendente -> incerto` commitada antes de `sendMessage`; reenvio somente via `/retry_uncertain` explícito ([data-model.md](data-model.md) §4.1, [telegram-bot.md](contracts/telegram-bot.md) §4). |
-| **G-04: Neutralidade de motor e spike obrigatório (`ADR-0001`)** | PASS | PASS | Esquema 100% SQLAlchemy 2.0 Core + Alembic sem tipos específicos de dialeto; Cenário 0 valida concorrência, `kill -9` e round-trip de backup ([data-model.md](data-model.md), [quickstart.md](quickstart.md) §2). |
-| **G-05: Alerta independente de falha de digest (`FR-033`, `SC-008`)** | PASS | PASS | `watchdog-check` separado com token/webhook independente + dead-man's-switch externo, testado derrubando o envio de propósito ([research.md](research.md) R-07, [cli-and-modes.md](contracts/cli-and-modes.md) §3.3). |
-| **G-06: Isolamento de credenciais de backup e restore explícito (`FR-043..046`)** | PASS | PASS | Credenciais `RESTIC_*`/`RCLONE_*` restritas ao serviço `feed-curator-backup`; `restore` nunca automático e valida hash, integridade, revisão e contagens ([cli-and-modes.md](contracts/cli-and-modes.md) §3.2, [scorer-and-evaluation.md](contracts/scorer-and-evaluation.md) §3). |
-| **G-07: Imagem mínima, `read_only`, Trivy, entrega direta e isolamento na VPS (`NFR-001..014`)** | PASS | PASS | Multi-stage build limpo, `.dockerignore` estrito, inspeção do tar exportado (`SC-013`), `read_only: true`, Trivy bloqueante para `CRITICAL` corrigível e `save/load` sem portas ([research.md](research.md) R-08, [quickstart.md](quickstart.md) §2). |
-| **G-08: Modularidade ≤ 300 linhas por arquivo Python e codificação segura** | PASS | PASS | Árvore de código particionada por responsabilidade única (< 300 linhas/arquivo) e Plano de Verificação de Segurança completo ([quickstart.md](quickstart.md) §3). |
+| **I. Curadoria Guiada por Evidência e Controle Humano (`FR-018`, `SC-005`, `SC-012`)** | PASS | PASS | `SimpleRuleScorer` é o seletor padrão; `aprovar_llm` exige `frozen-criteria.yaml` commitado antes das notas, recall nos raros estritamente superior e aprovação humana explícita ([data-model.md](data-model.md) §2.8, [scorer-and-evaluation.md](contracts/scorer-and-evaluation.md) §2). |
+| **II. Proteção Preventiva de Custo, Estado Durável e Falha Segura (`FR-019..026`, `FR-032..033`)** | PASS | PASS | Reserva em micro-USD via `BEGIN IMMEDIATE` sem retries ocultos ([research.md](research.md) R-03); transição `pendente -> incerto` commitada antes de `sendMessage` e reenvio só via `/retry_uncertain` ([data-model.md](data-model.md) §4.1); lease `processor_leases` e `watchdog-check` independente ([cli-and-modes.md](contracts/cli-and-modes.md) §3.3). |
+| **III. Fronteira de Confiança Zero, Privacidade e Privilégio Mínimo (`FR-016`, `FR-036..037`, `FR-043`, `NFR-007`)** | PASS | PASS | LLM sem ferramentas e com conferência de `entry_id`; `defusedxml` anti-XXE; bloqueio anti-SSRF; `html.escape`; segredos `fail-closed` segregados (`app` sem `RESTIC_*`/`RCLONE_*`); zero portas, não-root e `read_only: true` ([quickstart.md](quickstart.md) §3, [cli-and-modes.md](contracts/cli-and-modes.md) §3–§4). |
+| **IV. Simplicidade Proporcional, Modularidade e Portabilidade de Estado (`ADR-0001`, `FR-035`, `FR-044..045`)** | PASS | PASS | Composição enxuta sem daemon permanente; `DATABASE_URL` neutro (SQLAlchemy 2.0 Core + Alembic); módulos particionados ≤ 300 linhas; exportação OPML, backup cifrado com manifesto e `restore` exclusivamente explícito ([data-model.md](data-model.md), [scorer-and-evaluation.md](contracts/scorer-and-evaluation.md) §3). |
+| **V. Verificação Antes de Entrega e Higiene Reprodutível de Artefatos (`NFR-001..012`, `SC-013..014`)** | PASS | PASS | Spike obrigatório de concorrência/`SIGKILL`/restore (`test_storage_spike.py`), falha deliberada do alerta independente, multi-stage build em commit limpo, inspeção do tar exportado, Trivy bloqueante para `CRITICAL` corrigível e mocks locais restritos a `127.0.0.1` ([quickstart.md](quickstart.md) §2–§3). |
+| **Restrições Operacionais & Fluxo de Gates (`NFR-013..014`)** | PASS | PASS | Projeto Compose, rede, volumes e limites isolados do stack de trading na VPS; entrega direta `save/load` com checagem de disco livre e dupla conferência (SHA-256 + config ID); zero dados/segredos no Git ([research.md](research.md) R-08). |
 
 ## Project Structure
 
@@ -116,7 +114,7 @@ src/feed_curator/
 ├── scoring/
 │   ├── contracts.py               # Protocolo Scorer + ScoringInput/ScoringOutput Pydantic
 │   ├── simple_rule.py             # SimpleRuleScorer determinístico (palavras-chave + peso)
-│   ├── llm_provider.py            # Adaptador HTTP LLM sem tools, prompt delimitado e ID check
+│   ├── llm_provider.py            # OpenAICompatibleScorer (API Z.AI /chat/completions, max_retries=0, sem tools, ID check)
 │   └── budget_guard.py            # Reserva preventiva em micro-USD e reconciliação (FR-019..021)
 ├── evaluation/
 │   ├── wilson.py                  # Contagem bruta + intervalo de confiança de Wilson (95%)

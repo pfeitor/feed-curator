@@ -9,7 +9,7 @@ Este documento especifica os contratos de dados entre o núcleo da aplicação e
 
 ## 1. Contrato do Provedor de Pontuação (`Scorer` — FR-013..016, FR-037)
 
-Qualquer provedor de LLM (Anthropic, OpenAI, Gemini ou mock de teste) e o avaliador determinístico (`SimpleRuleScorer`) implementam a mesma fronteira de entrada/saída, sem expor detalhes de SDK ao restante do sistema (FR-015).
+Qualquer provedor de LLM e o avaliador determinístico (`SimpleRuleScorer`) implementam a mesma fronteira de entrada/saída, sem expor detalhes de transporte ao restante do sistema (FR-015). Na V1, o adaptador concreto padrão é o `OpenAICompatibleScorer` apontando para a **API Z.AI (`api.z.ai`, `POST {LLM_BASE_URL}/chat/completions`)** via `httpx.AsyncClient` com `temperature=0`, `max_retries=0`, `tools` ausente, extração de `usage.prompt_tokens`/`completion_tokens` para liquidação no ledger e mascaramento estrito de segredos em falhas.
 
 ### 1.1 Payload de Entrada (`ScoringInput`) — Fronteira de Privacidade e Untrusted Data
 
