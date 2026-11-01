@@ -19,7 +19,7 @@ As questões abaixo foram decididas por um council de 8 membros (Torvalds, Machi
 - Q: Qual resultado faria desistir do scoring por LLM? (FR-018) → A: desistir se o recall nos itens raros do LLM for **menor ou igual** ao da regra simples no mesmo conjunto (empate = a regra fica) **ou** se o custo mensal projetado ultrapassar o orçamento do usuário. Resultado ambíguo mantém a regra e estende o período de observação. "Custo por item relevante" foi descartado como gatilho (8/8 no voto final).
 - Q: Quais metas de aprovação? (SC-005) → A: critérios congelados em arquivo versionado **antes** de rodar o LLM; o recall nos itens raros é a única meta dura e é **relativa à regra simples** (sem percentual absoluto inventado); a precisão é só reportada, com teto de fadiga provisório de no máximo 2 itens ruins em 7. "Erro de agrupamento" saiu da meta (agrupamento está fora de escopo).
 - Q: Como validar o LLM antes de entregar com base nele? → A: fluxo **híbrido** (8/8): triagem offline barata (~100–150 itens: união dos topos da regra e do LLM + amostra aleatória de controle, rotulagem cega à nota do modelo, ≥15 raros, contagem bruta + intervalo de Wilson, menos de 10 raros = inconclusivo) apenas para descartar o "claramente pior"; a decisão final vem de um **modo sombra** (shadow) sobre o digest real. Até a aprovação, o digest enviado é o da regra simples.
-- Q: O que é indispensável antes do primeiro digest real? → A: teto de gasto com reserva prévia, simulação (dry-run), idempotência pela chave do digest do dia, bloqueio simples de concorrência, estado "incerto" com a intenção de envio gravada **antes** do envio, migrações por versão, cópia periódica do estado, e alerta "digest não enviado hoje" por canal independente do pipeline e comprovado derrubando o envio de propósito. **Adiados**: verificação de saúde sofisticada, restauração verificada de backup, modo contínuo (serve).
+- Q: O que é indispensável antes do primeiro digest real? → A: teto de gasto com reserva prévia, simulação (dry-run), idempotência pela chave do digest do dia, bloqueio simples de concorrência, estado "incerto" com a intenção de envio gravada **antes** do envio, migrações por versão, cópia periódica do estado, e alerta "digest não enviado hoje" por canal independente do pipeline e comprovado derrubando o envio de propósito. **Adiados**: verificação de saúde sofisticada, restauração verificada de backup, modo contínuo (serve). *(Revisto pelo usuário: a restauração guiada mínima voltou à V1; ver respostas abaixo.)*
 - Voto vencido registrado: shadow-first puro, sem triagem offline (Elon/Watts/Lao Tzu em parte). Se o usuário não marcar o digest com regularidade, a triagem offline volta a ser um gate de go-live (alerta do Feynman).
 
 ### Session 2026-10-31 — respostas do usuário
@@ -28,6 +28,13 @@ As questões abaixo foram decididas por um council de 8 membros (Torvalds, Machi
 - Q: Como definir "raro / nunca poderia perder" para a avaliação? → A: o usuário escreve 1–2 frases de critério e 5–10 exemplos reais de itens que não poderia perder, antes da triagem; o sistema redige a rubrica a partir disso e o usuário a aprova (opção A, recomendada). Essa definição entra nos critérios congelados.
 - Q: Quanto esforço de rotulagem você aceita para a triagem offline? → A: ~100–150 itens em 2 sessões (≈1 h), com meta de pelo menos 15 itens raros (opção A, recomendada). Se houver menos de 10 raros, o resultado é "inconclusivo" e o modo sombra completa a amostra.
 - Q: Qual o máximo mensal que você aceita gastar com o provedor de LLM? → A: cerca de US$5 por mês, ≈ US$0,17 por dia (opção A, recomendada). Vale como orçamento do usuário em FR-018 e FR-019; o teto diário deriva dele.
+- Q: Como o estado dos testes em Docker no Windows chega à VPS? → A: por backup cifrado fora do servidor e restauração **por comando explícito e guiado** (opção recomendada), nunca automática por detecção de banco vazio, e com o rótulo de ambiente do backup exibido. O backup roda como serviço separado, com credenciais próprias, a partir da mesma imagem do aplicativo (FR-043 a FR-046).
+- Decisão do usuário: o armazenamento de imagens em registro (GitHub) **não é requisito** e foi descartado; a imagem é gerada localmente e transferida para a VPS (NFR-013). Tornou desnecessárias a cota e a visibilidade do registro, e deslocou o peso para a reprodutibilidade do build (NFR-008) e a integridade da transferência. Tipo de entrega confirmado contra a SPEC-077 do projeto de trading (a 076 construía na VPS).
+- Q: A raiz somente leitura deve ser obrigatória e testável? → A: sim (opção A, recomendada): a imagem inicia e funciona com raiz somente leitura, volume de estado e `/tmp` em memória, verificado por teste; exceção só com motivo registrado. NFR-007 deixou de ser "quando possível".
+- Q: A varredura de vulnerabilidades deve ser obrigatória e bloquear? → A: obrigatória a cada build, com resultado registrado, bloqueando a entrega à VPS apenas com achado **crítico corrigível** (opção A, recomendada). NFR-010 passou de recomendada para obrigatória.
+- Q: O feed-curator roda na mesma VPS do stack de trading? → A: sim, na mesma VPS, em projeto Compose, volumes e limites próprios (opção A). Gerou a NFR-014. A VPS já hospeda ~18 serviços de trading, e a SPEC-077 exige ≥ 20 GiB livres após carregar as imagens dela; a margem de disco e RAM precisa ser medida antes do primeiro deploy.
+- Requisito do usuário (não é pergunta): a imagem de execução não deve levar o que for desnecessário (ex.: ambiente virtual local). Detalhado em NFR-001 a NFR-013, com SC-013 e SC-014; o assistente acrescentou: sem material de desenvolvimento, build em etapas, contexto de build controlado, imagem pública sem caminhos/usuários, privilégio mínimo, build reprodutível, rastreabilidade, varredura de vulnerabilidades e tamanho medido.
+- Q: Onde fica o destino do backup? → A: pasta do Drive e repositório cifrado **próprios do feed-curator** (opção recomendada), seguindo o padrão da SPEC-076 do projeto de trading, sem compartilhar repositório, senha nem credenciais com ele.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -125,19 +132,22 @@ O usuário reage a cada item entregue (útil, não útil, guardar para depois), 
 
 ---
 
-### User Story 6 - Levar meu ambiente para outro lugar (Priority: P3)
+### User Story 6 - Levar meu ambiente para outro lugar (Priority: P2)
 
-O usuário exporta a lista de feeds ativos em OPML a qualquer momento, importa um OPML pelo canal de entrega e dispõe de uma cópia periódica do estado persistente para levar a outro host.
+O usuário exporta a lista de feeds ativos em OPML a qualquer momento, importa um OPML pelo canal de entrega e mantém uma cópia periódica, cifrada e **fora do servidor**, do estado persistente. Em um ambiente novo (por exemplo, ao levar para a VPS o que foi produzido nos testes em Docker no Windows), ele restaura essa cópia por um **comando explícito e guiado**, que confere integridade antes de aceitar.
 
-**Why this priority**: Evita aprisionamento e protege contra perda de dados, mas não bloqueia o valor central. A restauração verificada fica para depois da primeira versão utilizável.
+**Why this priority**: Evita aprisionamento e protege contra perda de dados. Passou de P3 para P2 porque a migração dos testes locais para a VPS depende de uma restauração verificada mínima (decisão do usuário), embora o valor central não dependa dela.
 
-**Independent Test**: Exportar o OPML, importá-lo em instalação limpa e comparar; confirmar que a cópia periódica do estado é gerada e legível.
+**Independent Test**: Exportar o OPML e importá-lo em instalação limpa; gerar um backup num ambiente, restaurá-lo num ambiente vazio por comando explícito e comparar hash, integridade e contagens; confirmar que o restore recusa um banco já populado sem confirmação explícita.
 
 **Acceptance Scenarios**:
 
 1. **Given** feeds ativos, **When** o usuário pede a exportação, **Then** recebe um arquivo OPML com todos os feeds ativos.
 2. **Given** um arquivo OPML enviado pelo canal de entrega, **When** o usuário o importa, **Then** os feeds são adicionados de forma idempotente.
-3. **Given** o ciclo de cópia periódica, **When** ele roda, **Then** é gerada uma cópia datada do estado persistente (feeds, entregas, feedback), disponível para restauração manual.
+3. **Given** o ciclo de cópia periódica, **When** ele roda, **Then** é gerada uma cópia datada, cifrada e enviada para fora do servidor, com um manifesto (hash, revisão do esquema, contagens por tabela e rótulo de ambiente).
+4. **Given** um ambiente novo com o estado vazio, **When** o usuário executa o restore explícito, **Then** o sistema confere o hash, a integridade do banco, a compatibilidade do esquema e as contagens contra o manifesto antes de aceitar, e informa o rótulo de ambiente do backup.
+5. **Given** um banco que já contém dados, **When** o restore é executado sem confirmação explícita de sobrescrita, **Then** é recusado sem tocar no banco.
+6. **Given** um volume que ficou vazio por engano (perda ou montagem errada), **When** o sistema sobe, **Then** ele **não** restaura sozinho; o restore só ocorre por comando explícito.
 
 ---
 
@@ -159,6 +169,10 @@ O usuário exporta a lista de feeds ativos em OPML a qualquer momento, importa u
 - **O alerta de "digest não enviado" depende do mesmo processo que falhou**: não é aceitável; o alerta precisa de caminho independente e comprovado.
 - **Resultado da avaliação ambíguo ou com poucos raros**: nunca aprova o LLM; mantém a regra e estende o modo sombra.
 - **Itens que a regra nunca mostra ao usuário**: não geram rótulo no uso real; a amostra aleatória de controle existe para encontrá-los.
+- **Backup de teste (dev) restaurado em produção**: permitido só por comando explícito, com o rótulo de ambiente do backup exibido; nunca automático.
+- **Restore sobre banco populado ou com esquema incompatível**: recusado sem confirmação explícita; esquema mais antigo é migrado após o restore, e mais novo é recusado.
+- **Backup corrompido ou com hash divergente**: o restore não toca no banco.
+- **Dados do usuário dentro da imagem ou do repositório públicos**: proibido; backups e bancos nunca entram na imagem nem no repositório.
 
 ## Requirements *(mandatory)*
 
@@ -221,7 +235,7 @@ O usuário exporta a lista de feeds ativos em OPML a qualquer momento, importa u
 - **FR-035**: A estrutura de dados MUST evoluir por migrações versionadas e repetíveis.
 - **FR-036**: Segredos MUST ser fornecidos somente por variáveis de ambiente; o sistema MUST NOT abrir portas de entrada e MUST executar sem privilégios de administrador.
 - **FR-037**: Ao provedor de pontuação MUST ser enviado somente conteúdo da publicação, rubrica e exemplos aprovados — nunca identificadores do usuário, segredos ou histórico de conversa.
-- **FR-038**: O sistema MUST gerar periodicamente uma cópia datada do estado persistente; a restauração verificada é adiada para depois da primeira versão utilizável.
+- **FR-038**: O sistema MUST gerar periodicamente uma cópia datada e consistente do estado persistente, cifrada e enviada para fora do servidor, acompanhada de um manifesto com hash, revisão do esquema, contagens por tabela e rótulo de ambiente (`dev` ou `prod`).
 
 **Modo sombra**
 
@@ -229,6 +243,32 @@ O usuário exporta a lista de feeds ativos em OPML a qualquer momento, importa u
 - **FR-040**: O usuário MUST poder marcar o digest como um todo ("faltou algo") além de cada item ("valeu"/"lixo" equivalem a útil/não útil); as marcações MUST alimentar a avaliação do modo sombra.
 - **FR-041**: O sistema MUST avisar o usuário quando passarem 7 dias sem nenhuma marcação durante o modo sombra.
 - **FR-042**: O sistema MUST registrar a decisão final do modo sombra (aprovar o LLM, manter a regra ou estender) com data, critérios usados e quem decidiu; o critério congelado decide, não a impressão posterior.
+
+**Backup e restauração guiada**
+
+- **FR-043**: O backup MUST rodar como serviço separado do aplicativo, com credenciais próprias; o aplicativo MUST NOT receber as credenciais do destino do backup.
+- **FR-044**: O sistema MUST oferecer um comando de restauração explícito que confira, antes de aceitar, o hash do backup, a integridade do banco, a compatibilidade da revisão do esquema e as contagens por tabela contra o manifesto; falha em qualquer conferência MUST NOT alterar o banco.
+- **FR-045**: A restauração MUST recusar um banco que já contenha dados, salvo confirmação explícita de sobrescrita, e MUST NOT ocorrer automaticamente quando o banco estiver vazio; o rótulo de ambiente do backup MUST ser exibido antes da confirmação.
+- **FR-046**: Backups e bancos MUST NOT ser incluídos na imagem de execução nem no repositório de código; o backup só é obtido em tempo de execução, do destino cifrado.
+
+### Non-Functional Requirements — imagem de execução
+
+*Requisito do usuário: não levar para a imagem o que não for necessário em execução (ex.: ambientes virtuais locais). Os itens abaixo detalham e ampliam essa regra.*
+
+- **NFR-001** *(mínima por construção)*: A imagem de execução MUST conter somente a aplicação, as dependências de execução e o que o runtime exige (dados de fuso horário para `America/Sao_Paulo` e certificados de autoridades para as conexões seguras). MUST NOT conter ambientes virtuais locais, caches (de pacotes, de build, de testes, de verificação de tipos e de estilo), diretórios de controle de versão nem arquivos de editor ou IDE.
+- **NFR-002** *(sem material de desenvolvimento)*: A imagem MUST NOT conter código de teste, dados de teste, documentação, especificações, ADRs nem configuração de ferramentas de desenvolvimento ou de agentes, exceto o que o runtime exige (rubrica versionada, lista inicial de feeds, migrações de esquema).
+- **NFR-003** *(construção em etapas)*: Dependências de desenvolvimento, compiladores e ferramentas de build MUST ficar fora da imagem final, e caches do gerenciador de pacotes MUST ser removidos.
+- **NFR-004** *(sem segredos nem dados)*: Segredos, arquivos de ambiente, credenciais, bancos, backups, dumps, conjuntos rotulados e logs MUST NOT estar em nenhuma camada da imagem, nem em argumentos de build, nem no histórico ou nos metadados.
+- **NFR-005** *(contexto de build controlado)*: O contexto de build MUST excluir explicitamente o material das regras acima, por uma lista de exclusão versionada, para que arquivos locais não entrem por acidente.
+- **NFR-006** *(sem vazamento do ambiente local)*: Camadas e metadados MUST NOT expor caminhos locais, nomes de usuário, e-mails nem nomes de hosts internos. O repositório de código é público e a imagem pode vir a ser compartilhada no futuro, então a regra vale mesmo sem registro.
+- **NFR-007** *(privilégio mínimo)*: A imagem MUST executar sem privilégios de administrador. Ela MUST iniciar e funcionar com o sistema de arquivos raiz somente leitura, escrevendo apenas no volume de estado e em área temporária em memória; esse funcionamento MUST ser verificado por teste. Se algo exigir escrita fora desses locais, a exceção MUST ser registrada com o motivo.
+- **NFR-008** *(build reprodutível)*: Imagem base e dependências MUST ter versões fixadas e travadas, de modo que a mesma entrada produza a mesma imagem funcional.
+- **NFR-009** *(rastreabilidade)*: Cada imagem MUST ser construída a partir de um commit do tronco, já publicado e sem alterações pendentes (a construção MUST recusar árvore suja), e MUST ser identificável por versão e commit de origem.
+- **NFR-010** *(vulnerabilidades)*: Cada build MUST passar por varredura de vulnerabilidades conhecidas, com o resultado registrado. A imagem MUST NOT seguir para a VPS com achado **crítico que tenha correção disponível**; achados sem correção são registrados, sem bloquear.
+- **NFR-011** *(tamanho)*: O tamanho da imagem MUST ser medido e registrado a cada build, dentro de um limite provisório (ver Assumptions); ultrapassá-lo exige justificativa registrada.
+- **NFR-012** *(exceção declarada)*: As ferramentas de backup e restauração fazem parte da mesma imagem (modos distintos) e contam no limite de tamanho; nenhuma credencial delas pode estar na imagem (FR-043, FR-046).
+- **NFR-013** *(entrega direta da imagem)*: A imagem MUST chegar à VPS por transferência direta (sem registro), exportada como um único arquivo comprimido. A integridade MUST ser conferida em duas camadas: hash do arquivo e **identificador de configuração da imagem** lido na origem e no destino (o ID local não serve, pois varia entre implementações de armazenamento do Docker). A versão anterior MUST permanecer disponível na VPS para reversão, e a produção MUST NOT construir imagens na VPS. A arquitetura da imagem MUST coincidir com a da VPS (SC-011), e a construção MUST recusar plataforma diferente da da VPS.
+- **NFR-014** *(isolamento na VPS compartilhada)*: Por rodar na mesma VPS do stack de trading, o feed-curator MUST ter projeto Compose, rede e volumes próprios; MUST NOT usar o banco, a rede, os volumes nem os segredos do trading; MUST ter limites de memória e CPU definidos; MUST verificar espaço livre em disco antes de carregar a imagem e abortar se insuficiente; e MUST NOT publicar portas no host. Nenhuma operação do feed-curator pode escrever em `/var/lib/docker` por cópia de arquivos nem reiniciar serviços do trading.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -242,6 +282,7 @@ O usuário exporta a lista de feeds ativos em OPML a qualquer momento, importa u
 - **Conjunto rotulado**: publicações e casos de repetição com a classificação do usuário (às cegas), usado exclusivamente na avaliação; inclui amostra aleatória de controle.
 - **Critérios congelados**: arquivo versionado e datado com as regras de decisão (aprovar / manter regra / estender), anterior à execução.
 - **Rubrica**: critério versionado de importância (com exemplos aprovados), que origina as pontuações.
+- **Backup**: arquivo datado e cifrado do estado persistente, com manifesto (hash, revisão do esquema, contagens por tabela, rótulo de ambiente `dev`/`prod`, data de geração).
 
 ## Success Criteria *(mandatory)*
 
@@ -255,10 +296,12 @@ O usuário exporta a lista de feeds ativos em OPML a qualquer momento, importa u
 - **SC-006**: 100% dos itens entregues têm link funcional para o original e 100% das pontuações registram versão de rubrica e modelo.
 - **SC-007**: Uma falha em um feed ou em uma chamada isolada não impede que os demais itens do ciclo sejam processados (0 ciclos abortados por falha isolada).
 - **SC-008**: Quando o digest esperado não é confirmado, o usuário recebe o alerta por canal independente em até um ciclo, comprovado derrubando o envio de propósito; o usuário também é avisado de feeds quebrados e de teto esgotado.
-- **SC-009**: Existe uma cópia datada do estado persistente gerada pelo menos uma vez ao dia, e o sistema inicia em menos de 15 minutos em ambiente novo a partir dos arquivos de implantação e das variáveis de ambiente.
+- **SC-009**: Existe um backup datado e cifrado, fora do servidor, gerado pelo menos uma vez ao dia; a restauração guiada em ambiente novo recupera 100% dos feeds, entregas e feedbacks com hash, integridade e contagens conferidos, e o sistema inicia em menos de 15 minutos a partir dos arquivos de implantação, das variáveis de ambiente e do backup.
 - **SC-010**: Mensagens de usuários não autorizados geram 0 respostas e 0 mudanças de estado.
 - **SC-011**: A mesma imagem de execução funciona nas arquiteturas amd64 e arm64, verificada por execução.
 - **SC-012**: Ao fim do modo sombra (2–4 semanas) existe uma decisão registrada (aprovar o LLM, manter a regra ou estender) com data, critérios e rótulos de uso real; 0 entregas do período foram escolhidas pelo LLM antes da aprovação.
+- **SC-013**: A inspeção automatizada do sistema de arquivos exportado de cada imagem (sem executá-la; listagem vazia ou falha na exportação reprova) encontra 0 itens da lista de exclusão (ambientes virtuais, caches, controle de versão, segredos, dados, testes, documentação, configuração de agentes) e 0 caminhos locais, usuários ou e-mails nos metadados.
+- **SC-014**: O tamanho da imagem é registrado a cada build e fica dentro do limite provisório; 100% dos builds que o ultrapassem têm justificativa registrada.
 
 ## Assumptions
 
@@ -279,6 +322,7 @@ O usuário exporta a lista de feeds ativos em OPML a qualquer momento, importa u
 - Sem expiração inicial de texto e de itens descartados (Q-15); número de falhas para pausar um feed é configurável (Q-09).
 - A importância (rubrica) será redigida com o usuário na etapa de avaliação, com exemplos (Q-03); os itens da triagem e os casos de repetição serão rotulados pelo usuário sobre listas geradas pelo sistema (Q-04).
 - O mecanismo do supervisor externo e do canal independente do alerta serão definidos no planejamento (Q-17/Q-33).
+- Destino do backup (decisão do usuário): pasta do Drive e repositório cifrado próprios do feed-curator, com senha e credenciais próprias, no padrão da SPEC-076 do projeto de trading (backup lógico, manifesto, cifra com `restic`, envio por `rclone`, `fetch` na VPS), sem compartilhar nada com ele. Os segredos do backup ficam fora do repositório e fora da imagem (cofre de segredos do usuário).
 - Rubrica e lista inicial de feeds ficam versionadas no repositório; o estado operacional de feeds fica no banco, com exportação OPML como instantâneo (Q-34).
 - O council deliberou assumindo armazenamento leve (SQLite); o documento de origem mantém Postgres. A escolha de armazenamento está em análise no ADR `docs/adr/0001-armazenamento-do-estado.md` (status: proposta) e não altera os requisitos acima (bloqueio de concorrência, cópia periódica e migrações valem para qualquer um).
 
@@ -289,6 +333,8 @@ O usuário exporta a lista de feeds ativos em OPML a qualquer momento, importa u
 - Definição de "raro / nunca poderia perder": **definida pelo usuário** em 1–2 frases e 5–10 exemplos reais, escritos antes da triagem e congelados; a aprovação do LLM continua relativa à regra simples, sem percentual absoluto de tolerância.
 - Esforço de rotulagem: **~100–150 itens em duas sessões (≈1 h), confirmado pelo usuário**; meta de pelo menos 15 itens raros.
 - Disposição de marcar o digest ("valeu/lixo/faltou algo"): **confirmada pelo usuário — na maioria dos dias, não todos**; modo sombra de 2 a até 4 semanas com triagem offline leve. Se isso mudar para "provavelmente não", a triagem offline volta a ser gate de go-live.
+- Precedente de entrega da imagem: **SPEC-077 do projeto de trading** (status `approved`, mas **todas as fases ainda pendentes**; desenho não comprovado em produção). Build no host local a partir de commit limpo do tronco; `docker image save` comprimido num único arquivo com hash e manifesto; `scp` declarado; conferência pelo identificador de configuração; `docker image load` na VPS; nenhum build na VPS. A SPEC-077 trata a VPS como `linux/amd64`, e isso foi **confirmado em 2026-10-31** com `uname -m` na VPS: `x86_64` (amd64). A imagem usará UID/GID do usuário da VPS como argumentos de build, para o dono correto do volume de estado e dos backups.
+- Limite provisório de tamanho da imagem (NFR-011, SC-014): **300 MB** — estimativa nossa, sem medição. Sem registro, o tamanho pesa no tempo de transferência e no disco da VPS, não em cota. No primeiro build o limite é recalibrado (tamanho medido mais ~25% de folga) e registrado aqui.
 - Os alvos de SC-001 (5 minutos de leitura) e SC-009 (15 minutos para subir em ambiente novo) são padrões propostos por esta spec, não valores do documento de origem.
 
 **Restrições herdadas da base mantida (para planejamento)**
@@ -299,12 +345,12 @@ O usuário exporta a lista de feeds ativos em OPML a qualquer momento, importa u
 **Dependências**
 
 - Chave de API do provedor de pontuação (necessária para qualquer avaliação paga) e token do bot do canal de entrega (necessário para interação real). Esta spec não autoriza chamadas pagas nem escrita em banco antes de aprovação explícita do usuário.
-- Host/recursos de execução e registry de imagem ainda por decidir (Q-10/Q-11).
+- Host: **a mesma VPS do stack de trading (ARPHost), com Docker** (informado pelo usuário), isolada conforme NFR-014. A imagem é **gerada localmente (Docker/WSL) e transferida diretamente para a VPS**; registro de imagens **não é requisito** (Q-11 descartada pelo usuário). Recursos e arquitetura da VPS ainda por confirmar (Q-10 parcial). O estado persistente fica em volume, nunca na camada da imagem.
 
 **Fora de escopo desta feature (adiados por evidência — §3.2/§3.3 do documento e deliberação do council)**
 
 - Alertas imediatos de nota máxima: só depois de recall comprovado e de fechados teto, latência e reaparição (Q-06/Q-12/Q-23).
 - Agrupamento de eventos (cluster) e similaridade de títulos: só com limiar e janela avaliados (Q-25/Q-28); nesta versão há deduplicação exata e as repetições temáticas são medidas.
 - Prévia pontuada de feed novo, período de observação automático (probation), silenciamento temporário, peso a priori influente, resumo longo sob demanda ("mais detalhes"), busca em itens descartados, estatísticas ricas, exemplos automáticos no prompt.
-- Verificação de saúde sofisticada, restauração verificada de backup e modo contínuo (serviço permanente) — adiados para depois da primeira versão utilizável.
+- Verificação de saúde sofisticada, teste de restauração agendado, alerta de backup atrasado, restauração automática por detecção de banco vazio e modo contínuo (serviço permanente) — adiados para depois da primeira versão utilizável. A restauração guiada mínima (FR-044/045) **não** está adiada.
 - Front-end web próprio (inclusive acesso por VPN privada), multiusuário, reenvio de texto integral, ajuste fino de modelo, fontes que não sejam RSS/Atom e tradução integral.

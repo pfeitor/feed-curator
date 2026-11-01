@@ -12,7 +12,18 @@ accept-gates: Q-10 respondida; spike de ~1 h aprovado; caminho de backup confirm
 
 ## Status
 
-**Proposta.** Nada foi aceito. Há um **padrão provisório** (Postgres via `DATABASE_URL`) que só vira decisão depois de três condições de aceite (ver *Condições de aceite*). Revisado após um council neutro de 3 membros, com votos finais unânimes.
+**Proposta.** Nada foi aceito. Há um **padrão provisório** que só vira decisão depois de três condições de aceite (ver *Condições de aceite*). O council recomendou Postgres via `DATABASE_URL` enquanto o host era desconhecido; com as respostas do usuário (VPS com Docker e preferência por zero serviço extra), o padrão provisório passou a **A (SQLite em volume nomeado)**, mantendo o código neutro de motor. Revisado após um council neutro de 3 membros, com votos finais unânimes.
+
+## Entradas do usuário (2026-10-31)
+
+Respostas à Q-10, dadas após o council neutro:
+
+- **Onde roda no dia a dia:** em uma **VPS própria, a mesma do stack de trading (ARPHost)**, com Docker, isolada por projeto Compose, volumes e limites próprios (NFR-014 da spec). Isso reforça a eliminação da opção C: nenhuma instância de banco do trading é reutilizada. A imagem é **gerada localmente (Docker/WSL) e transferida diretamente para a VPS**; o uso de um registro de imagens foi descartado pelo usuário (não é requisito). Precedente: SPEC-077 do projeto de trading (aprovada, fases pendentes); a SPEC-076 construía na VPS.
+- **Banco:** a imagem "provisiona" o banco. Interpretação registrada: o **esquema é criado e migrado na subida do container**, mas o **arquivo do banco fica em volume nomeado**, nunca na camada da imagem (usuário concordou).
+- **Preferência:** **zero serviço extra** (SQLite).
+- **Backup e migração Windows → VPS:** a imagem inclui um **modo de backup** (serviço separado, mesma imagem, credenciais próprias), no padrão da SPEC-076 do projeto de trading (`docs/features/076-migracao-postgres-vps-arphost-backup-2026-10-15`). O backup fica atualizado durante os testes em Docker no Windows e é buscado na VPS. Respostas do usuário: **restore por comando explícito e guiado** (nunca automático por banco vazio) e **destino próprio do feed-curator** (pasta do Drive e repositório cifrado separados dos de trading).
+
+Efeito: o ramo "com disco local e zero serviço extra" da árvore de decisão passa a valer, e o **padrão provisório muda de Postgres para A (SQLite em volume)**. As outras duas condições de aceite continuam abertas.
 
 ## Contexto
 
@@ -81,30 +92,36 @@ Sem pontuação numérica: o rascunho anterior somava pesos escolhidos por quem 
 | Sem disco local persistente | **B2** (Postgres gerenciado) |
 | Com disco local, e você quer **zero serviço extra** | **A** (SQLite) |
 | Com disco local, e você quer reaproveitar a rotina de backup do Postgres | **B1** |
-| **Host ainda indefinido** | **Padrão provisório: Postgres** (B1 se houver disco, B2 se não) |
+| Host ainda indefinido (**já não é o caso**) | Postgres como seguro provisório (B1 se houver disco, B2 se não) |
 
-O padrão provisório é um **seguro contra um host desconhecido**, não uma superioridade técnica do Postgres. Se o host for confirmado com disco e a preferência for zero serviço, **A é escolha igualmente legítima**.
+**Situação atual:** VPS com Docker e disco local, preferência por zero serviço extra ⇒ **A (SQLite) é o padrão provisório.** O Postgres permanece como saída documentada (ver *Gatilhos de revisão*); o código neutro de motor mantém essa saída barata.
 
 ## Condições de aceite (as três são necessárias)
 
-1. **Q-10 respondida:** onde roda, e se há disco local persistente.
+1. **Q-10 respondida:** ✅ VPS própria com Docker (2026-10-31). Arquitetura da VPS confirmada em 2026-10-31 (`uname -m` = `x86_64`, amd64). Falta confirmar, na VPS, que o volume fica em disco local (não em montagem de rede).
 2. **Spike de ~1 h aprovado**, nos dois motores, com SQLAlchemy Core:
    - 2 processos fazem 1000 reservas contra um teto; a soma **nunca** pode ultrapassá-lo.
    - `kill -9` no meio do commit da intenção de envio; o estado **nunca** pode ficar inconsistente (nem `confirmado` sem identificador de mensagem).
    - Medir quantas linhas divergem por dialeto.
-3. **Caminho de backup confirmado** para a opção escolhida (script existente reutilizável em B1; procedimento novo e testado em A e B2; em A, API de backup ou `VACUUM INTO`, nunca `cp` com o processo ativo).
+3. **Caminho de backup confirmado e testado.** Caminho **definido** (2026-10-31), falta executá-lo:
+   - **Geração:** API de backup do SQLite (ou `VACUUM INTO`), nunca `cp` com o processo ativo; arquivo mais manifesto (hash, revisão do esquema, contagens por tabela, rótulo de ambiente `dev`/`prod`).
+   - **Transporte:** cifra com `restic` em repositório próprio e envio por `rclone` a uma pasta do Drive própria; na VPS, `fetch` do backup.
+   - **Restore guiado:** comando explícito que confere hash, `integrity_check`, compatibilidade da revisão do esquema e contagens; recusa banco populado sem confirmação de sobrescrita; **nunca automático** quando o banco estiver vazio; exibe o rótulo de ambiente.
+   - **Isolamento:** serviço separado, com credenciais próprias; o aplicativo não recebe as credenciais do Drive.
+   - **Fora da imagem e do repositório:** o repositório é público (e a imagem pode ser compartilhada no futuro), então backup e banco nunca podem ser embutidos na imagem nem commitados.
+   - **Acréscimo ao spike (SQLite):** ida e volta do backup, ou seja, gerar, restaurar num banco vazio e obter hash, integridade e contagens iguais.
 
 **Hipótese registrada antes de rodar o spike (para o teste poder refutá-la):** os dois motores passam nos dois testes, e a divergência de dialeto fica restrita à camada de conexão e às configurações do motor. **Refutação:** qualquer estouro do teto, qualquer estado inconsistente após `kill -9`, ou divergência de dialeto que vaze para além da camada de acesso a dados **muda este ADR**.
 
 ## Consequências
 
-**Do padrão provisório (Postgres)**
-- (+) Funciona em qualquer host; mantém DEC-02; testes contra o mesmo motor de produção (RNF-016); reaproveita a rotina de backup em B1.
-- (−) Mais um serviço, segredo e processo de upgrade para ~9 posts/dia; em B2, o backup deixa de ser o já operado.
+**Do padrão provisório atual (A, SQLite em volume nomeado)**
+- (+) Zero serviço extra, um arquivo, sem credenciais de banco, testes triviais, imagem menor (o driver já vem na biblioteca padrão).
+- (−) Exige disco local persistente (não serve em rede nem em montagens do Windows/WSL2); backup é procedimento novo (agora definido: cópia cifrada fora da VPS, no padrão da SPEC-076); reabre DEC-02, RNF-002 e RNF-016 no documento de origem; a restauração verificada, antes adiada, volta à V1 numa versão mínima para viabilizar a migração Windows → VPS.
 
-**Se o host levar a A (SQLite)**
-- (+) Zero serviço extra, um arquivo, testes triviais.
-- (−) Exige disco local persistente (não serve em rede nem em montagens do Windows/WSL2); backup é procedimento novo; reabre DEC-02, RNF-002 e RNF-016 no documento de origem.
+**Se a escolha passar a Postgres (B1/B2)**
+- (+) Funciona em qualquer host; mantém DEC-02; testes contra o mesmo motor do documento de origem (RNF-016); reaproveita a rotina de backup em B1.
+- (−) Mais um serviço, segredo e processo de upgrade para ~9 posts/dia; em B2, o backup deixa de ser o já operado.
 
 ## Gatilhos de revisão
 
@@ -133,7 +150,7 @@ O padrão provisório é um **seguro contra um host desconhecido**, não uma sup
 
 1. Responder Q-10 (onde roda; disco persistente; RAM disponível para um Postgres).
 2. Rodar o spike de ~1 h e registrar o resultado neste ADR.
-3. Confirmar o caminho de backup e marcar o ADR como *Accepted* (ou *Superseded* se a hipótese for refutada).
+3. Executar o caminho de backup definido (incluindo a ida e volta) e marcar o ADR como *Accepted* (ou *Superseded* se a hipótese for refutada).
 4. Ajustar a spec (Assumptions) e, se A vencer, DEC-02/RNF-002/RNF-016 no documento de origem.
 
 ## Referências
